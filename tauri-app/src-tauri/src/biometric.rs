@@ -34,7 +34,9 @@ mod macos {
 
     fn format_keychain_error(action: &str, error: security_framework::base::Error) -> String {
         match error.code() {
-            ERR_SEC_ITEM_NOT_FOUND => "No Touch ID login is saved for this username on this Mac.".to_string(),
+            ERR_SEC_ITEM_NOT_FOUND => {
+                "No Touch ID login is saved for this username on this Mac.".to_string()
+            }
             _ => match error.message() {
                 Some(message) if !message.trim().is_empty() => {
                     format!("Failed to {action}: {message}")
@@ -113,10 +115,13 @@ mod macos {
             context.setLocalizedFallbackTitle(Some(ns_string!("")));
         }
 
-        if let Err(error) =
-            unsafe { context.canEvaluatePolicy_error(LAPolicy::DeviceOwnerAuthenticationWithBiometrics) }
-        {
-            return Err(format_local_auth_error("check Touch ID availability", &error));
+        if let Err(error) = unsafe {
+            context.canEvaluatePolicy_error(LAPolicy::DeviceOwnerAuthenticationWithBiometrics)
+        } {
+            return Err(format_local_auth_error(
+                "check Touch ID availability",
+                &error,
+            ));
         }
 
         let (sender, receiver) = mpsc::channel();
@@ -175,7 +180,12 @@ mod macos {
         match delete_generic_password_options(delete_options) {
             Ok(()) => {}
             Err(error) if error.code() == ERR_SEC_ITEM_NOT_FOUND => {}
-            Err(error) => return Err(format_keychain_error("replace the saved Touch ID login", error)),
+            Err(error) => {
+                return Err(format_keychain_error(
+                    "replace the saved Touch ID login",
+                    error,
+                ))
+            }
         }
 
         let mut options =
@@ -198,8 +208,10 @@ mod macos {
         let bytes = generic_password(options)
             .map_err(|error| format_keychain_error("read the Touch ID login", error))?;
 
-        String::from_utf8(bytes)
-            .map_err(|_| "Saved Touch ID login data is invalid. Please disable and re-enable Touch ID login.".to_string())
+        String::from_utf8(bytes).map_err(|_| {
+            "Saved Touch ID login data is invalid. Please disable and re-enable Touch ID login."
+                .to_string()
+        })
     }
 
     pub fn remove_biometric_secret(username: &str) -> Result<(), String> {
@@ -211,7 +223,10 @@ mod macos {
         match delete_generic_password_options(options) {
             Ok(()) => Ok(()),
             Err(error) if error.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(()),
-            Err(error) => Err(format_keychain_error("remove the saved Touch ID login", error)),
+            Err(error) => Err(format_keychain_error(
+                "remove the saved Touch ID login",
+                error,
+            )),
         }
     }
 }

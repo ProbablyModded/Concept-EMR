@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#667eea">
-    <title>SmartEMR v4.0.11</title>
+    <title>SmartEMR v4.0.12</title>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
@@ -3517,9 +3517,11 @@
             </div>
             <div id="resetPanel" style="display:none; text-align:left; margin-top: 12px; border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px;">
                 <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; color: var(--text-color-primary);">Password Recovery</div>
+                <div style="font-size: 0.78rem; color: var(--text-color-secondary); margin-bottom: 8px;">This Mac will try its saved recovery key. If you are restoring on another Mac, enter your portable database recovery key. Email verification by itself cannot unlock encrypted client data.</div>
                 <input type="text" id="resetUsernameInput" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--input-text); font-size: 14px;">
                 <button id="sendResetCodeBtn" class="btn" style="width: 100%; padding: 10px; margin-bottom: 8px;">Send Reset Code</button>
                 <input type="text" id="resetCodeInput" placeholder="6-digit code" style="width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--input-text); font-size: 14px;">
+                <input type="text" id="resetRecoveryKeyInput" placeholder="Portable database recovery key (if needed)" autocomplete="off" style="width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--input-text); font-size: 14px;">
                 <input type="password" id="resetNewPasswordInput" placeholder="New Password" style="width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--input-text); font-size: 14px;">
                 <input type="password" id="resetConfirmPasswordInput" placeholder="Confirm New Password" style="width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--input-text); font-size: 14px;">
                 <button id="confirmResetBtn" class="btn save-btn" style="width: 100%; padding: 10px; margin-bottom: 8px;">Reset Password</button>
@@ -3571,6 +3573,21 @@
             <p id="loginErrorMsg" style="color: #e74c3c; margin-top: 15px; font-size: 0.9rem; display: none;">Incorrect username or password.</p>
         </div>
         </div>
+
+    <div id="recoveryKeyModal" role="dialog" aria-modal="true" aria-labelledby="recoveryKeyTitle" style="display:none; position:fixed; inset:0; z-index:10020; background:rgba(0,0,0,0.78); align-items:center; justify-content:center; padding:20px;">
+        <div style="width:min(520px, 100%); background:var(--panel-bg); color:var(--text-color-primary); border:1px solid var(--panel-border); border-radius:14px; padding:24px; box-shadow:0 18px 50px rgba(0,0,0,0.42); text-align:left;">
+            <h2 id="recoveryKeyTitle" style="margin:0 0 10px;">Save your database recovery key</h2>
+            <p style="margin:0 0 14px; color:var(--text-color-secondary);">This key can recover your encrypted client data if you lose your password and cannot use this Mac. Store it somewhere private, separate from this computer. SmartEMR cannot recreate it later.</p>
+            <textarea id="recoveryKeyDisplay" readonly aria-label="Database recovery key" style="width:100%; min-height:74px; resize:vertical; box-sizing:border-box; padding:12px; border:1px solid var(--input-border); border-radius:8px; background:var(--input-bg); color:var(--input-text); font-family:monospace; font-size:15px; overflow-wrap:anywhere;"></textarea>
+            <button id="copyRecoveryKeyBtn" class="btn" style="width:100%; padding:10px; margin-top:10px;">Copy Recovery Key</button>
+            <div id="recoveryKeyStatus" style="min-height:20px; margin-top:8px; color:var(--text-color-secondary); font-size:0.82rem;"></div>
+            <label style="display:flex; gap:9px; align-items:flex-start; margin:8px 0 16px; line-height:1.4;">
+                <input id="recoveryKeySavedCheckbox" type="checkbox" style="margin-top:3px;">
+                <span>I saved this recovery key somewhere I can access if this Mac is unavailable.</span>
+            </label>
+            <button id="acknowledgeRecoveryKeyBtn" class="btn save-btn" disabled style="width:100%; padding:11px;">I saved my recovery key</button>
+        </div>
+    </div>
 
 
     <!-- CSSRS Modal (moved to end of body for proper initialization) -->
@@ -5091,6 +5108,8 @@
             removeBiometricLoginForUser,
             requestPasswordReset,
             confirmPasswordReset,
+            consumePendingRecoveryCode,
+            acknowledgeRecoveryKey,
             requestEmailVerification,
             confirmEmailVerification,
             updateRecoverySettings,
@@ -17288,6 +17307,7 @@ This error cannot be fixed within this application's code; it requires a configu
                     changePasswordStatus.textContent = 'Password updated.';
                     changePasswordStatus.style.color = '#27ae60';
                     refreshBiometricSettingsUI();
+                    await presentPendingRecoveryKey();
                 } else {
                     changePasswordStatus.textContent = getLastAuthError() || 'Password update failed.';
                     changePasswordStatus.style.color = '#e74c3c';
@@ -18684,6 +18704,16 @@ This error cannot be fixed within this application's code; it requires a configu
             }
         }
 
+        async function presentPendingRecoveryKey() {
+            const pendingCode = consumePendingRecoveryCode();
+            if (!pendingCode) return;
+            document.getElementById('recoveryKeyDisplay').value = pendingCode;
+            document.getElementById('recoveryKeySavedCheckbox').checked = false;
+            document.getElementById('acknowledgeRecoveryKeyBtn').disabled = true;
+            document.getElementById('recoveryKeyStatus').textContent = '';
+            document.getElementById('recoveryKeyModal').style.display = 'flex';
+        }
+
         async function finalizeSuccessfulUnlock() {
             const hooks = await waitForAppAuthHooks();
 
@@ -18702,6 +18732,7 @@ This error cannot be fixed within this application's code; it requires a configu
             hooks.fullRender();
             setBiometricStatusMessage('');
             refreshBiometricSettingsUI();
+            await presentPendingRecoveryKey();
         }
 
         async function enableBiometricLoginForCurrentSession() {
@@ -19401,6 +19432,7 @@ This error cannot be fixed within this application's code; it requires a configu
             const code = (document.getElementById('resetCodeInput').value || '').trim();
             const newPassword = document.getElementById('resetNewPasswordInput').value || '';
             const confirmPassword = document.getElementById('resetConfirmPasswordInput').value || '';
+            const recoveryKey = document.getElementById('resetRecoveryKeyInput').value || '';
             const status = document.getElementById('resetStatusMsg');
 
             if (newPassword !== confirmPassword) {
@@ -19412,7 +19444,7 @@ This error cannot be fixed within this application's code; it requires a configu
             status.style.color = 'var(--text-color-secondary)';
             status.textContent = 'Resetting password...';
 
-            const success = await confirmPasswordReset(username, code, newPassword);
+            const success = await confirmPasswordReset(username, code, newPassword, recoveryKey);
             if (success) {
                 status.style.color = '#27ae60';
                 status.textContent = 'Password reset successful. You can now log in.';
@@ -19421,9 +19453,38 @@ This error cannot be fixed within this application's code; it requires a configu
                 document.getElementById('resetCodeInput').value = '';
                 document.getElementById('resetNewPasswordInput').value = '';
                 document.getElementById('resetConfirmPasswordInput').value = '';
+                document.getElementById('resetRecoveryKeyInput').value = '';
             } else {
                 status.style.color = '#e74c3c';
                 status.textContent = getLastAuthError() || 'Password reset failed.';
+            }
+        });
+
+        document.getElementById('recoveryKeySavedCheckbox').addEventListener('change', (event) => {
+            document.getElementById('acknowledgeRecoveryKeyBtn').disabled = !event.target.checked;
+        });
+        document.getElementById('copyRecoveryKeyBtn').addEventListener('click', async () => {
+            const recoveryKeyDisplay = document.getElementById('recoveryKeyDisplay');
+            try {
+                await navigator.clipboard.writeText(recoveryKeyDisplay.value);
+                document.getElementById('recoveryKeyStatus').textContent = 'Recovery key copied.';
+            } catch (_error) {
+                recoveryKeyDisplay.focus();
+                recoveryKeyDisplay.select();
+                document.getElementById('recoveryKeyStatus').textContent = 'Select and copy the recovery key manually.';
+            }
+        });
+        document.getElementById('acknowledgeRecoveryKeyBtn').addEventListener('click', async () => {
+            const status = document.getElementById('recoveryKeyStatus');
+            const button = document.getElementById('acknowledgeRecoveryKeyBtn');
+            button.disabled = true;
+            const saved = await acknowledgeRecoveryKey();
+            if (saved) {
+                document.getElementById('recoveryKeyDisplay').value = '';
+                document.getElementById('recoveryKeyModal').style.display = 'none';
+            } else {
+                status.textContent = getLastAuthError() || 'Could not save confirmation. Keep this key available and try again.';
+                button.disabled = !document.getElementById('recoveryKeySavedCheckbox').checked;
             }
         });
 

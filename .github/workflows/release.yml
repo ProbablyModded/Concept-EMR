@@ -71,7 +71,10 @@ jobs:
           args: '--target aarch64-apple-darwin'
           tagName: ${{ inputs.release_tag || github.ref_name }}
           releaseName: 'SmartEMR ${{ inputs.release_tag || github.ref_name }}'
-          releaseBody: 'SmartEMR v4.0.11 ensures Client Information is committed to the encrypted database before the editor closes, preventing profile changes from being lost if the app closes immediately. Existing client data is preserved.'
+          releaseBody: |
+            SmartEMR ${{ inputs.release_tag || github.ref_name }} adds encrypted database-key recovery and verified migration for existing client data.
+
+            Migration keeps the previous encrypted state, validates the replacement before committing, and updates the state, key envelope, and password together. Email verification alone cannot unlock the encrypted data; use this Mac's saved key or the portable recovery key. Save the portable key when prompted.
           releaseDraft: true
           prerelease: false
 
