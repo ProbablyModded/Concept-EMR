@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#667eea">
-    <title>SmartEMR v4.0.10</title>
+    <title>SmartEMR v4.0.11</title>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
@@ -12335,7 +12335,7 @@ ${explicitInterventionSignals.length > 0 ? `- **Explicit Intervention Signals fr
                 clientInformationModal.classList.remove('hidden');
                 setTimeout(() => clientFirstNameInput.focus(), 0);
             };
-            const saveClientInformation = () => {
+            const saveClientInformation = async () => {
                 const client = findClient(editingClientInformationId);
                 if (!client) return;
                 const firstName = clientFirstNameInput.value.trim();
@@ -12404,10 +12404,30 @@ ${explicitInterventionSignals.length > 0 ? `- **Explicit Intervention Signals fr
                         address: row.querySelector('.therapy-location-address')?.value.trim() || ''
                     }))
                     .filter(location => location.address || location.label !== 'Other');
+                isDirty = true;
+                updateSaveStatus('Saving client information...', false);
+                clearTimeout(saveTimeout);
+                const saveButtonText = saveClientInformationBtn.textContent;
+                saveClientInformationBtn.disabled = true;
+                saveClientInformationBtn.textContent = 'Saving...';
+                let saved = false;
+                try {
+                    saved = await saveDataToLocalStorage();
+                } catch (error) {
+                    console.error('Failed to save client information:', error);
+                } finally {
+                    saveClientInformationBtn.disabled = false;
+                    saveClientInformationBtn.textContent = saveButtonText;
+                }
+                if (!saved) {
+                    updateSaveStatus('Client information could not be saved. Keep SmartEMR open and try Save again.', false);
+                    return;
+                }
+
                 clientInformationModal.classList.add('hidden');
                 editingClientInformationId = null;
-                markDirty();
                 fullRender();
+                updateSaveStatus('Client information saved.', true, 2000);
             };
 
             const openAddClientModal = () => {
@@ -17357,7 +17377,7 @@ This error cannot be fixed within this application's code; it requires a configu
             ];
 
             const shouldTriggerAutoSave = (el) => {
-                if (!el || !el.matches) return false;
+                if (!el || !el.matches || el.closest?.('#clientInformationModal')) return false;
                 return autosaveSelectors.some(sel => {
                     try { return el.matches(sel); } catch (e) { return false; }
                 });
