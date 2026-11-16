@@ -72,9 +72,9 @@ jobs:
           tagName: ${{ inputs.release_tag || github.ref_name }}
           releaseName: 'SmartEMR ${{ inputs.release_tag || github.ref_name }}'
           releaseBody: |
-            SmartEMR ${{ inputs.release_tag || github.ref_name }} adds encrypted database-key recovery and verified migration for existing client data.
+            SmartEMR ${{ inputs.release_tag || github.ref_name }} adds persistent client sorting, complete partner naming for couple sessions, and a recovery-key prompt that cannot be bypassed by biometric login.
 
-            Migration keeps the previous encrypted state, validates the replacement before committing, and updates the state, key envelope, and password together. Email verification alone cannot unlock the encrypted data; use this Mac's saved key or the portable recovery key. Save the portable key when prompted.
+            Existing client data remains in the same encrypted database. Older databases require a one-time password unlock to migrate safely; save the portable recovery key when prompted. Accounts that already completed migration will now receive the recovery-key prompt on Touch ID unlock if it has not been acknowledged.
           releaseDraft: true
           prerelease: false
 

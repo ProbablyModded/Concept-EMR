@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#667eea">
-    <title>SmartEMR v4.0.12</title>
+    <title>SmartEMR v4.0.13</title>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
@@ -576,10 +576,31 @@
             font-weight: 600;
         }
 
-        .client-bank-sort-btn {
-            padding: 2px 6px;
-            font-size: 12px;
+        .client-sort-control {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             flex-shrink: 0;
+        }
+
+        .client-sort-label {
+            color: var(--text-color-secondary);
+            font-size: 0.72rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .client-sort-select {
+            width: auto;
+            min-width: 66px;
+            max-width: 82px;
+            padding: 3px 5px;
+            border: 1px solid var(--panel-border);
+            border-radius: 6px;
+            background: var(--input-bg);
+            color: var(--input-text);
+            font-size: 0.74rem;
+            font-weight: 600;
         }
 
         .client-section-clear-btn {
@@ -3955,7 +3976,14 @@
                             </div>
                             <div class="client-section-header-actions">
                                 <span id="mainBankCount" class="client-section-count">0 clients</span>
-                                <button id="sortClientsBtn" title="Sort Main Bank A-Z" class="btn client-bank-sort-btn" type="button">A-Z</button>
+                                <label class="client-sort-control">
+                                    <span class="client-sort-label">Sort by</span>
+                                    <select id="clientSortSelect" class="client-sort-select" aria-label="Sort clients by">
+                                        <option value="first">First</option>
+                                        <option value="last">Last</option>
+                                        <option value="appt">Appt</option>
+                                    </select>
+                                </label>
                             </div>
                         </div>
                         <div class="client-search-wrap">
@@ -4248,8 +4276,8 @@
             </div>
 
             <div id="sessionMembersWrap" class="hidden" style="margin-bottom: 1rem;">
-                <label style="margin-bottom: 0.5rem; font-weight: 600; display: block;">Session Members <span style="color: #b91c1c;">*</span></label>
-                <div style="font-size: 0.8rem; color: var(--text-color-secondary); margin-top: 4px;">
+                <label style="margin-bottom: 0.5rem; font-weight: 600; display: block;"><span id="sessionMembersLabel">Session Members</span> <span style="color: #b91c1c;">*</span></label>
+                <div id="sessionMembersHelp" style="font-size: 0.8rem; color: var(--text-color-secondary); margin-top: 4px;">
                     Add every member of the couple, partnership, or family. Each member needs a name and pronouns; family sessions also require each member's role.
                 </div>
                 <div id="sessionMembersList" class="session-members-list"></div>
@@ -5231,7 +5259,12 @@
             const archivedClientsModal = document.getElementById('archivedClientsModal');
             const closeArchivedClientsBtn = document.getElementById('closeArchivedClientsBtn');
             const exitArchivedClientsBtn = document.getElementById('exitArchivedClientsBtn');
-            const sortClientsBtn = document.getElementById('sortClientsBtn');
+            const clientSortSelect = document.getElementById('clientSortSelect');
+            const CLIENT_SORT_PREFERENCE_KEY = 'clientSortMode';
+            const VALID_CLIENT_SORT_MODES = new Set(['first', 'last', 'appt']);
+            let clientSortMode = localStorage.getItem(CLIENT_SORT_PREFERENCE_KEY) || 'first';
+            if (!VALID_CLIENT_SORT_MODES.has(clientSortMode)) clientSortMode = 'first';
+            clientSortSelect.value = clientSortMode;
             const appointmentListEl = document.getElementById('appointmentList');
             const addAppointmentBtn = document.getElementById('addAppointmentBtn');
             const addIntakeBtn = document.getElementById('addIntakeBtn');
@@ -5418,6 +5451,8 @@
             const clientSessionTypeSelect = document.getElementById('clientSessionTypeSelect');
             const clientSoapPlatformSelect = document.getElementById('clientSoapPlatformSelect');
             const sessionMembersWrapEl = document.getElementById('sessionMembersWrap');
+            const sessionMembersLabelEl = document.getElementById('sessionMembersLabel');
+            const sessionMembersHelpEl = document.getElementById('sessionMembersHelp');
             const sessionMembersListEl = document.getElementById('sessionMembersList');
             const addSessionMemberBtn = document.getElementById('addSessionMemberBtn');
             const saveCustomInstructionsBtn = document.getElementById('saveCustomInstructionsBtn');
@@ -6727,6 +6762,56 @@
                 const todaySessionIds = new Set(data.todaySessionClientIds || []);
                 return (data.clients || []).filter(client => !todaySessionIds.has(client.id));
             };
+
+            const getClientNamePartsForSorting = (client) => {
+                const fullName = String(client?.name || '').trim();
+                const splitAt = fullName.search(/\s/);
+                const fallbackFirstName = splitAt < 0 ? fullName : fullName.slice(0, splitAt);
+                const fallbackLastName = splitAt < 0 ? '' : fullName.slice(splitAt).trim();
+                return {
+                    firstName: String(client?.firstName || fallbackFirstName).trim(),
+                    lastName: String(client?.lastName || fallbackLastName).trim(),
+                    fullName
+                };
+            };
+
+            const compareClientNameFields = (left, right) => {
+                if (!left && right) return 1;
+                if (left && !right) return -1;
+                return String(left || '').localeCompare(String(right || ''), undefined, { sensitivity: 'base' });
+            };
+
+            const getMostRecentClientAppointmentTimestamp = (client) => {
+                const timestamps = (Array.isArray(client?.appointments) ? client.appointments : [])
+                    .map(appointment => getAppointmentDateInputValue(appointment?.date))
+                    .filter(Boolean)
+                    .map(date => Date.parse(`${date}T00:00:00Z`))
+                    .filter(Number.isFinite);
+                return timestamps.length ? Math.max(...timestamps) : Number.NEGATIVE_INFINITY;
+            };
+
+            const getSortedMainBankClients = (clients) => clients.slice().sort((left, right) => {
+                const leftName = getClientNamePartsForSorting(left);
+                const rightName = getClientNamePartsForSorting(right);
+                if (clientSortMode === 'appt') {
+                    const leftAppointment = getMostRecentClientAppointmentTimestamp(left);
+                    const rightAppointment = getMostRecentClientAppointmentTimestamp(right);
+                    if (leftAppointment !== rightAppointment) {
+                        if (leftAppointment === Number.NEGATIVE_INFINITY) return 1;
+                        if (rightAppointment === Number.NEGATIVE_INFINITY) return -1;
+                        return rightAppointment - leftAppointment;
+                    }
+                    return compareClientNameFields(leftName.lastName, rightName.lastName)
+                        || compareClientNameFields(leftName.firstName, rightName.firstName)
+                        || compareClientNameFields(leftName.fullName, rightName.fullName);
+                }
+
+                const primaryField = clientSortMode === 'last' ? 'lastName' : 'firstName';
+                const secondaryField = primaryField === 'lastName' ? 'firstName' : 'lastName';
+                return compareClientNameFields(leftName[primaryField], rightName[primaryField])
+                    || compareClientNameFields(leftName[secondaryField], rightName[secondaryField])
+                    || compareClientNameFields(leftName.fullName, rightName.fullName);
+            });
 
             const moveClientToTodaySessionsEnd = (clientId) => {
                 if (!clientId) return;
@@ -8141,7 +8226,8 @@
                 const memberLines = members.map((member, index) => {
                     const name = (member?.name || '').trim() || `Member ${index + 1}`;
                     const role = sessionType === 'family' ? `; role: ${(member?.role || '').trim() || 'not assigned'}` : '';
-                    return `\n- **Session Member ${index + 1}:** ${name}${role}; pronouns: ${getSessionMemberPronounsLabel(member)}`;
+                    const memberLabel = sessionType === 'couple' ? 'Partner' : 'Family Member';
+                    return `\n- **${memberLabel} ${index + 1}:** ${name}${role}; pronouns: ${getSessionMemberPronounsLabel(member)}`;
                 }).join('');
                 const collectiveGrammarRule = sessionType === 'couple'
                     ? '\n- **Couple Collective Grammar Rule:** When referring to both members together, use "Cts" as the collective subject and "Cts\'" as the collective possessive. Never write "Ct\'s" for a couple. Use "Ct\'s" only for one singular client; use each named member\'s name and assigned pronouns for individual references.'
@@ -10290,7 +10376,7 @@ ${explicitInterventionSignals.length > 0 ? `- **Explicit Intervention Signals fr
                 `;
 
                 const todayClients = getTodaySessionClients();
-                const mainBankClients = getMainBankClients();
+                const mainBankClients = getSortedMainBankClients(getMainBankClients());
                 const searchQuery = clientSearchQuery.trim().toLowerCase();
                 const filteredMainBankClients = searchQuery
                     ? mainBankClients.filter(client => String(client.name || '').toLowerCase().includes(searchQuery))
@@ -16920,13 +17006,11 @@ This error cannot be fixed within this application's code; it requires a configu
                 markDirty();
                 fullRender();
             });
-            sortClientsBtn.addEventListener('click', () => {
-                const sortedMainIds = getMainBankClients()
-                    .slice()
-                    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-                    .map(client => client.id);
-                reorderVisibleClientSlots(sortedMainIds);
-                markDirty();
+            clientSortSelect.addEventListener('change', () => {
+                const requestedMode = clientSortSelect.value;
+                clientSortMode = VALID_CLIENT_SORT_MODES.has(requestedMode) ? requestedMode : 'first';
+                localStorage.setItem(CLIENT_SORT_PREFERENCE_KEY, clientSortMode);
+                clientSortSelect.value = clientSortMode;
                 renderClients();
             });
             clearTodaySessionsBtn.addEventListener('click', () => {
@@ -17938,17 +18022,25 @@ This error cannot be fixed within this application's code; it requires a configu
 
                 ensureSessionMembersDraftMinimum();
                 const familySession = clientSessionTypeSelect.value === 'family';
+                const memberNoun = familySession ? 'Family Member' : 'Partner';
+                if (sessionMembersLabelEl) sessionMembersLabelEl.textContent = familySession ? 'Family Members' : 'Partners';
+                if (sessionMembersHelpEl) {
+                    sessionMembersHelpEl.textContent = familySession
+                        ? 'Add every family member. Each person needs a name, role, and pronouns.'
+                        : 'Add every partner in the couple or partnership. Each partner needs a name and pronouns; add more partners as needed.';
+                }
+                if (addSessionMemberBtn) addSessionMemberBtn.textContent = familySession ? '+ Add Family Member' : '+ Add Partner';
                 sessionMembersListEl.innerHTML = sessionMembersDraft.map((member, index) => {
                     const pronouns = normalizePreferredPronounRecord(member.preferredPronouns);
                     const isCustom = pronouns.value === 'custom';
                     return `
                         <div class="session-member-row" data-session-member-index="${index}">
                             <div class="session-member-heading">
-                                <span>Member ${index + 1}</span>
+                                <span>${memberNoun} ${index + 1}</span>
                                 <button type="button" class="session-member-remove-btn remove-session-member-btn" ${sessionMembersDraft.length <= 2 ? 'disabled' : ''}>Remove</button>
                             </div>
                             <div class="session-member-fields">
-                                <input class="setting-input session-member-name" type="text" required value="${escapeGoalDraftHtml(member.name)}" placeholder="Name (e.g., Ted)" aria-label="Session member ${index + 1} name">
+                                <input class="setting-input session-member-name" type="text" required value="${escapeGoalDraftHtml(member.name)}" placeholder="${familySession ? 'Name' : 'Partner name'} (e.g., Ted)" aria-label="${memberNoun} ${index + 1} name">
                                 ${familySession ? `<input class="setting-input session-member-role" type="text" required value="${escapeGoalDraftHtml(member.role)}" placeholder="Role (e.g., parent, child)" aria-label="Session member ${index + 1} role">` : ''}
                                 <select class="setting-input session-member-pronouns" required aria-label="Session member ${index + 1} pronouns">
                                     ${getPronounSelectOptionsMarkup(pronouns.value)}

@@ -689,6 +689,7 @@ export async function loginUserWithBiometricSecret(username, storedEncryptionKey
         encryptionKey = null;
         encryptionMode = 'legacy';
         currentUser = null;
+        pendingRecoveryCode = '';
         const database = await getDb();
         const normalizedUsername = (username || '').trim();
         const normalizedSecret = (storedEncryptionKey || '').trim();
@@ -731,20 +732,29 @@ export async function loginUserWithBiometricSecret(username, storedEncryptionKey
                     JSON.parse(plaintext);
                 }
             }
+            if (!envelope.recoveryKeyAcknowledged) {
+                const recoveryCode = await invokeTauriCommand('generate_recovery_key');
+                const updatedEnvelope = {
+                    ...envelope,
+                    recoveryWrap: await wrapDataKeyWithRecoveryCode(recoveryCode, dataKey),
+                    recoveryKeyAcknowledged: false
+                };
+                await upsertAppState(database, DATA_KEY_ENVELOPE_KEY, JSON.stringify(updatedEnvelope));
+                pendingRecoveryCode = recoveryCode;
+            }
             encryptionKey = dataKey;
             encryptionMode = 'v2';
             currentUser = normalizedUsername;
             await storeLocalDataKey(normalizedUsername, dataKey);
         } else {
-            encryptionKey = normalizedSecret;
-            encryptionMode = 'legacy';
-            currentUser = normalizedUsername;
+            lastAuthError = 'This database needs a one-time password migration. Enter your password to preserve and migrate your client data, then save the portable recovery key.';
+            return false;
         }
         lastAuthError = '';
         return true;
     } catch (error) {
         console.error('Failed to log in with biometric secret:', error);
-        lastAuthError = 'Biometric login failed. Please use your password.';
+        lastAuthError = error?.message || 'Biometric login failed. Please use your password.';
         return false;
     }
 }
