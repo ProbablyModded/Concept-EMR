@@ -1,7 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
 
+mod account_transaction;
 mod biometric;
+mod crypto;
+mod device_key;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -135,6 +138,23 @@ pub fn run() {
             biometric::store_biometric_secret,
             biometric::read_biometric_secret,
             biometric::remove_biometric_secret,
+            account_transaction::commit_encrypted_account_migration,
+            account_transaction::inspect_encrypted_database_export,
+            account_transaction::restore_encrypted_database_export,
+            crypto::generate_data_encryption_key,
+            crypto::generate_recovery_key,
+            crypto::generate_password_reset_code,
+            crypto::hash_account_password,
+            crypto::verify_account_password,
+            crypto::wrap_data_key_with_password,
+            crypto::unwrap_data_key_with_password,
+            crypto::wrap_data_key_with_recovery_key,
+            crypto::unwrap_data_key_with_recovery_key,
+            crypto::encrypt_application_state,
+            crypto::decrypt_application_state,
+            device_key::store_device_data_key,
+            device_key::read_device_data_key,
+            device_key::remove_device_data_key,
             generate_google_token,
             send_password_reset_email,
             send_email_verification_email,
@@ -144,12 +164,12 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-use serde::{Deserialize, Serialize};
+use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
-use chrono::{Utc, Duration};
-use lettre::{Message, SmtpTransport, Transport};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::transport::smtp::client::{Tls, TlsParameters};
+use lettre::{Message, SmtpTransport, Transport};
+use serde::{Deserialize, Serialize};
 use std::time::Duration as StdDuration;
 
 const SMTP_SEND_TIMEOUT_SECS: u64 = 20;
@@ -238,15 +258,18 @@ async fn generate_google_token(service_account_json: String) -> Result<String, S
 
     if !res.status().is_success() {
         let status = res.status();
-        let error_text = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        let error_text = res
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
         eprintln!("Failed to get access token: {} - {}", status, error_text);
-        return Err(format!("Failed to get access token: {} - {}", status, error_text));
+        return Err(format!(
+            "Failed to get access token: {} - {}",
+            status, error_text
+        ));
     }
 
-    let token_response: serde_json::Value = match res
-        .json()
-        .await
-    {
+    let token_response: serde_json::Value = match res.json().await {
         Ok(json) => json,
         Err(e) => {
             eprintln!("Failed to parse token response: {}", e);
@@ -367,8 +390,14 @@ async fn send_email_verification_email(args: ResetEmailArgs) -> Result<(), Strin
 
     let send_result = tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         let message = Message::builder()
-            .from(from_email.parse().map_err(|err| format!("Invalid from email: {err}"))?)
-            .to(to_email.parse().map_err(|err| format!("Invalid recipient email: {err}"))?)
+            .from(
+                from_email
+                    .parse()
+                    .map_err(|err| format!("Invalid from email: {err}"))?,
+            )
+            .to(to_email
+                .parse()
+                .map_err(|err| format!("Invalid recipient email: {err}"))?)
             .subject("SmartEMR Email Verification Code")
             .body(format!(
                 "Your SmartEMR email verification code is: {}\n\nThis code expires in 10 minutes.",
@@ -380,7 +409,8 @@ async fn send_email_verification_email(args: ResetEmailArgs) -> Result<(), Strin
         let security = smtp_security.to_lowercase();
 
         let mailer = if security == "ssl" {
-            let tls_params = TlsParameters::new(smtp_host.clone()).map_err(|err| format!("TLS error: {err}"))?;
+            let tls_params =
+                TlsParameters::new(smtp_host.clone()).map_err(|err| format!("TLS error: {err}"))?;
             SmtpTransport::builder_dangerous(&smtp_host)
                 .port(smtp_port)
                 .credentials(creds)
@@ -429,8 +459,14 @@ async fn send_smtp_test_email(args: SmtpTestArgs) -> Result<(), String> {
 
     let send_result = tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         let message = Message::builder()
-            .from(from_email.parse().map_err(|err| format!("Invalid from email: {err}"))?)
-            .to(to_email.parse().map_err(|err| format!("Invalid recipient email: {err}"))?)
+            .from(
+                from_email
+                    .parse()
+                    .map_err(|err| format!("Invalid from email: {err}"))?,
+            )
+            .to(to_email
+                .parse()
+                .map_err(|err| format!("Invalid recipient email: {err}"))?)
             .subject("SmartEMR SMTP Test")
             .body("SMTP test successful. Your recovery email configuration is working.".to_string())
             .map_err(|err| format!("Failed to compose test email: {err}"))?;
@@ -439,7 +475,8 @@ async fn send_smtp_test_email(args: SmtpTestArgs) -> Result<(), String> {
         let security = smtp_security.to_lowercase();
 
         let mailer = if security == "ssl" {
-            let tls_params = TlsParameters::new(smtp_host.clone()).map_err(|err| format!("TLS error: {err}"))?;
+            let tls_params =
+                TlsParameters::new(smtp_host.clone()).map_err(|err| format!("TLS error: {err}"))?;
             SmtpTransport::builder_dangerous(&smtp_host)
                 .port(smtp_port)
                 .credentials(creds)
