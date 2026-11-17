@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#667eea">
-    <title>SmartEMR v4.0.13</title>
+    <title>SmartEMR v4.0.14</title>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
@@ -17120,7 +17120,7 @@ This error cannot be fixed within this application's code; it requires a configu
                 const clientLens = getClientGoalGenerationLens(client);
                 goalGeneratorModalities = [...clientLens.modalities];
                 goalGeneratorModalityOther = clientLens.other || '';
-                goalDiagnosisInput.value = client.diagnosis || '';
+                goalDiagnosisInput.value = formatDiagnosisWithSubstantiationText(client);
                 presentingProblemShorthandInput.value = '';
                 goalCountInput.value = '1';
                 objectiveCountInput.value = '4';
