@@ -72,9 +72,9 @@ jobs:
           tagName: ${{ inputs.release_tag || github.ref_name }}
           releaseName: 'SmartEMR ${{ inputs.release_tag || github.ref_name }}'
           releaseBody: |
-            SmartEMR ${{ inputs.release_tag || github.ref_name }} adds persistent client sorting, complete partner naming for couple sessions, and a recovery-key prompt that cannot be bypassed by biometric login.
+            SmartEMR ${{ inputs.release_tag || github.ref_name }} now includes each treatment-plan diagnosis with its substantiation in the builder's Diagnosis field.
 
-            Existing client data remains in the same encrypted database. Older databases require a one-time password unlock to migrate safely; save the portable recovery key when prompted. Accounts that already completed migration will now receive the recovery-key prompt on Touch ID unlock if it has not been acknowledged.
+            Diagnoses and their substantiations appear as paired entries, with a blank line between diagnoses. Presenting Problem Shorthand remains separate. This change does not alter saved client diagnoses or existing treatment plans.
           releaseDraft: true
           prerelease: false
 
