@@ -611,7 +611,7 @@ dependencies = [
 
 [[package]]
 name = "client-records"
-version = "4.0.14"
+version = "4.0.15"
 dependencies = [
  "aes-gcm",
  "argon2",

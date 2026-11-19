@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#667eea">
-    <title>SmartEMR v4.0.14</title>
+    <title>SmartEMR v4.0.15</title>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         :root {
@@ -1873,11 +1873,52 @@
         .goal-generator-actions {
             display: flex;
             gap: 10px;
+        }
+        .goal-generator-save-actions {
             position: sticky;
             bottom: 0;
             background: var(--modal-bg);
             padding-top: 8px;
             z-index: 3;
+            justify-content: flex-end;
+        }
+        .goal-generator-field-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin: 0.75rem 0 0.25rem;
+        }
+        .goal-generator-field-heading label {
+            margin: 0 !important;
+        }
+        .goal-generator-import-btn {
+            flex: 0 0 auto;
+            padding: 6px 10px;
+            font-size: 0.82rem;
+        }
+        .intake-note-picker-modal {
+            z-index: 1100;
+        }
+        .intake-note-picker-content {
+            max-width: 560px;
+            max-height: 82vh;
+            overflow-y: auto;
+        }
+        .intake-note-picker-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin: 12px 0;
+        }
+        .intake-note-picker-option {
+            width: 100%;
+            text-align: left;
+        }
+        .intake-note-picker-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
         }
         #generatedGoalsReview {
             border-radius: 10px;
@@ -1900,6 +1941,10 @@
                 align-items: stretch !important;
             }
             .goal-generator-actions {
+                flex-wrap: wrap;
+            }
+            .goal-generator-field-heading {
+                align-items: flex-start;
                 flex-wrap: wrap;
             }
         }
@@ -4565,7 +4610,10 @@
                     <div class="goal-generator-title">Clinical Focus</div>
                     <label style="margin-bottom: 0.25rem; font-weight: 600; display: block;" for="goalDiagnosisInput">Diagnosis</label>
                     <textarea id="goalDiagnosisInput" class="setting-input" rows="3" placeholder="Enter the diagnosis to use for this treatment plan."></textarea>
-                    <label style="margin: 0.75rem 0 0.25rem; font-weight: 600; display: block;" for="presentingProblemShorthandInput">Presenting Problem Shorthand</label>
+                    <div class="goal-generator-field-heading">
+                        <label style="font-weight: 600; display: block;" for="presentingProblemShorthandInput">Presenting Problem Shorthand</label>
+                        <button id="importIntakeNoteBtn" type="button" class="btn goal-generator-import-btn">Import Intake Note</button>
+                    </div>
                     <textarea id="presentingProblemShorthandInput" class="setting-input" rows="4" placeholder="Enter shorthand symptoms, concerns, functional impact, and other clinician notes."></textarea>
                 </div>
                 <div class="goal-generator-card">
@@ -4606,9 +4654,24 @@
             </div>
             <div class="goal-generator-actions">
                 <button id="runGoalGeneratorBtn" class="btn">Generate Draft</button>
-                <button id="applyGeneratedGoalsBtn" class="btn save-btn" disabled>Save</button>
             </div>
             <div id="generatedGoalsReview" class="intervention-list"></div>
+            <div class="goal-generator-actions goal-generator-save-actions">
+                <button id="applyGeneratedGoalsBtn" class="btn save-btn" disabled>Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="intakeNotePickerModal" class="modal-overlay hidden intake-note-picker-modal" role="dialog" aria-modal="true" aria-labelledby="intakeNotePickerTitle" aria-hidden="true">
+        <div class="modal-content intake-note-picker-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--modal-header-border);">
+                <h2 id="intakeNotePickerTitle" style="font-size: 1.25rem; font-weight: bold; margin: 0;">Choose an intake date</h2>
+                <button id="closeIntakeNotePickerBtn" type="button" aria-label="Close intake note selection" style="font-size: 2rem; background: none; border: none; cursor: pointer; color: inherit;">&times;</button>
+            </div>
+            <div id="intakeNotePickerList" class="intake-note-picker-list" aria-live="polite"></div>
+            <div class="intake-note-picker-actions">
+                <button id="cancelIntakeNotePickerBtn" type="button" class="btn">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -5357,6 +5420,10 @@
             const closeSoapAuditGuideBtnBottom = document.getElementById('closeSoapAuditGuideBtnBottom');
             const goalGeneratorModal = document.getElementById('goalGeneratorModal');
             const closeGoalGeneratorBtn = document.getElementById('closeGoalGeneratorBtn');
+            const intakeNotePickerModal = document.getElementById('intakeNotePickerModal');
+            const intakeNotePickerList = document.getElementById('intakeNotePickerList');
+            const closeIntakeNotePickerBtn = document.getElementById('closeIntakeNotePickerBtn');
+            const cancelIntakeNotePickerBtn = document.getElementById('cancelIntakeNotePickerBtn');
             const generateGoalsBtn = document.getElementById('generateGoalsBtn');
             const addClientModal = document.getElementById('addClientModal');
             const closeAddClientBtn = document.getElementById('closeAddClientBtn');
@@ -5399,6 +5466,7 @@
             const downloadExportDataBtn = document.getElementById('downloadExportDataBtn');
             const goalDiagnosisInput = document.getElementById('goalDiagnosisInput');
             const presentingProblemShorthandInput = document.getElementById('presentingProblemShorthandInput');
+            const importIntakeNoteBtn = document.getElementById('importIntakeNoteBtn');
             const goalCountInput = document.getElementById('goalCountInput');
             const objectiveCountInput = document.getElementById('objectiveCountInput');
             const objectivesPerGoalInput = document.getElementById('objectivesPerGoalInput');
@@ -5599,6 +5667,8 @@
             let generatedGoalsDraft = [];
             let generatedPresentingProblemDraft = '';
             let activeGoalGeneratorClientId = null;
+            let goalIntakePickerClientId = null;
+            let goalIntakePickerSessions = [];
             let goalGenerationRequestId = 0;
             let goalGeneratorModalities = [];
             let goalGeneratorModalityOther = '';
@@ -10170,6 +10240,71 @@ ${explicitInterventionSignals.length > 0 ? `- **Explicit Intervention Signals fr
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
 
+            const closeIntakeNotePicker = () => {
+                intakeNotePickerModal.classList.add('hidden');
+                intakeNotePickerModal.setAttribute('aria-hidden', 'true');
+                intakeNotePickerList.replaceChildren();
+                goalIntakePickerClientId = null;
+                goalIntakePickerSessions = [];
+            };
+
+            const importIntakeSessionIntoGoalBuilder = (intakeSession) => {
+                const intakeText = formatIntakeSessionForCopy(intakeSession);
+                if (!intakeText) {
+                    alert('The selected intake note does not contain any entered information.');
+                    return false;
+                }
+                presentingProblemShorthandInput.value = intakeText;
+                presentingProblemShorthandInput.focus();
+                return true;
+            };
+
+            const openGoalIntakeNotePicker = () => {
+                const client = findClient(activeGoalGeneratorClientId);
+                if (!client) return;
+                const intakeSessions = (Array.isArray(client.intakeSessions) ? client.intakeSessions : [])
+                    .filter(Boolean)
+                    .slice()
+                    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+                if (!intakeSessions.length) {
+                    alert('This client does not have any intake notes to import.');
+                    return;
+                }
+                if (intakeSessions.length === 1) {
+                    importIntakeSessionIntoGoalBuilder(intakeSessions[0]);
+                    return;
+                }
+
+                const dayCounts = new Map();
+                const dayKeys = intakeSessions.map(session => {
+                    const date = session.createdAt ? new Date(session.createdAt) : null;
+                    const dayKey = date && Number.isFinite(date.getTime()) ? date.toLocaleDateString() : '';
+                    if (dayKey) dayCounts.set(dayKey, (dayCounts.get(dayKey) || 0) + 1);
+                    return dayKey;
+                });
+                const optionLabels = intakeSessions.map((session, index) => {
+                    const dayKey = dayKeys[index];
+                    let label = dayKey || 'Undated intake note';
+                    if (dayKey && dayCounts.get(dayKey) > 1) {
+                        const date = new Date(session.createdAt);
+                        label += ` · ${date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+                    }
+                    return label;
+                });
+                const labelCounts = new Map();
+                optionLabels.forEach(label => labelCounts.set(label, (labelCounts.get(label) || 0) + 1));
+                intakeNotePickerList.innerHTML = optionLabels.map((label, index) => {
+                    const distinctLabel = labelCounts.get(label) > 1 ? `${label} · Intake ${index + 1}` : label;
+                    return `<button type="button" class="btn intake-note-picker-option" data-intake-index="${index}">${escapeGoalDraftHtml(distinctLabel)}</button>`;
+                }).join('');
+                goalIntakePickerClientId = client.id;
+                goalIntakePickerSessions = intakeSessions;
+                intakeNotePickerModal.setAttribute('aria-hidden', 'false');
+                intakeNotePickerModal.classList.remove('hidden');
+                intakeNotePickerList.querySelector('button')?.focus();
+            };
+
             const renderGeneratedGoalsReview = () => {
                 if (!generatedGoalsReview) return;
                 if (!generatedGoalsDraft.length && !generatedPresentingProblemDraft) {
@@ -10343,6 +10478,7 @@ ${explicitInterventionSignals.length > 0 ? `- **Explicit Intervention Signals fr
                 generatedGoalsDraft = [];
                 generatedPresentingProblemDraft = '';
                 renderGeneratedGoalsReview();
+                closeIntakeNotePicker();
                 goalGeneratorModal.classList.add('hidden');
                 activeGoalGeneratorClientId = null;
                 goalGenerationRequestId += 1;
@@ -17135,6 +17271,7 @@ This error cannot be fixed within this application's code; it requires a configu
             });
             const closeGoalGenerator = () => {
                 goalGenerationRequestId += 1;
+                closeIntakeNotePicker();
                 activeGoalGeneratorClientId = null;
                 goalGeneratorModal.classList.add('hidden');
             };
@@ -17151,6 +17288,30 @@ This error cannot be fixed within this application's code; it requires a configu
             });
             runGoalGeneratorBtn.addEventListener('click', generateGoalDrafts);
             applyGeneratedGoalsBtn.addEventListener('click', applyGeneratedGoals);
+            importIntakeNoteBtn.addEventListener('click', openGoalIntakeNotePicker);
+            closeIntakeNotePickerBtn.addEventListener('click', closeIntakeNotePicker);
+            cancelIntakeNotePickerBtn.addEventListener('click', closeIntakeNotePicker);
+            intakeNotePickerList.addEventListener('click', (event) => {
+                const option = event.target.closest?.('[data-intake-index]');
+                if (!option) return;
+                const client = findClient(goalIntakePickerClientId);
+                const intakeIndex = Number(option.dataset.intakeIndex);
+                const selectedIntake = Number.isInteger(intakeIndex) ? goalIntakePickerSessions[intakeIndex] : null;
+                if (!client || client.id !== activeGoalGeneratorClientId || !selectedIntake) {
+                    closeIntakeNotePicker();
+                    alert('The selected intake note is no longer available for this client.');
+                    return;
+                }
+                const intakeSession = selectedIntake.id
+                    ? findIntakeSession(client, selectedIntake.id)
+                    : (client.intakeSessions || []).find(session => session === selectedIntake);
+                closeIntakeNotePicker();
+                if (!intakeSession) {
+                    alert('The selected intake note is no longer available for this client.');
+                    return;
+                }
+                importIntakeSessionIntoGoalBuilder(intakeSession);
+            });
             generatedGoalsReview.addEventListener('input', syncGeneratedGoalsFromReview);
             generatedGoalsReview.addEventListener('change', syncGeneratedGoalsFromReview);
 

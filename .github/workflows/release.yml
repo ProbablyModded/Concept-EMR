@@ -72,9 +72,9 @@ jobs:
           tagName: ${{ inputs.release_tag || github.ref_name }}
           releaseName: 'SmartEMR ${{ inputs.release_tag || github.ref_name }}'
           releaseBody: |
-            SmartEMR ${{ inputs.release_tag || github.ref_name }} now includes each treatment-plan diagnosis with its substantiation in the builder's Diagnosis field.
+            SmartEMR ${{ inputs.release_tag || github.ref_name }} adds an Import Intake Note option to the treatment-plan builder. If a client has multiple intake notes, select the note by date; the note's populated content is placed into Presenting Problem Shorthand. Save now appears below the generated treatment plan for review.
 
-            Diagnoses and their substantiations appear as paired entries, with a blank line between diagnoses. Presenting Problem Shorthand remains separate. This change does not alter saved client diagnoses or existing treatment plans.
+            Importing an intake note only fills the builder input. It does not modify the intake note or existing saved treatment plans.
           releaseDraft: true
           prerelease: false
 
