@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCompactDateDigits } from '../src/segmented-date-input.js';
+import { formatCompactDateEntry, parseCompactDateDigits } from '../src/segmented-date-input.js';
+
+test('formats a compact date entry as one MM/DD/YYYY field', () => {
+    assert.equal(formatCompactDateEntry('09052012'), '09/05/2012');
+    assert.equal(formatCompactDateEntry('09/05/2012'), '09/05/2012');
+});
 
 test('parses an eight-digit MMDDYYYY date', () => {
     assert.deepEqual(parseCompactDateDigits('07111994'), {
