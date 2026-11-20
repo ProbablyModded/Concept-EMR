@@ -10,10 +10,10 @@ for (const path of ['index.html', 'src/index.html']) {
         assert.match(html, /const fetchDiagnosticSupportFromAI =/);
         assert.match(html, /const fetchMedicalNecessityFromAI =/);
         assert.match(html, /const normalizeDiagnosticSupportFromAi = \(aiPayload\) => \{/);
-        assert.match(html, /const normalizeDiagnosticSupportReferences = \(value, client\) =>/);
+        assert.match(html, /const normalizeDiagnosticSupportReferences = \(value, client, appointment = null\) =>/);
         assert.match(html, /refer to the client as "Ct" and the clinician as "Writer"/);
         assert.match(html, /Never write "the client," "client," "the clinician," or "clinician"/);
-        assert.match(html, /normalizeDiagnosticSupportReferences\(supportFields\.diagnosticSupport, client\)/);
+        assert.match(html, /normalizeDiagnosticSupportReferences\(supportFields\.diagnosticSupport, client, appointment\)/);
         assert.match(html, /const rawSentences = Array\.isArray\(item\.sentences\)/);
         assert.match(html, /Each entry must contain a sentences array with 3-4 concise, complete sentences/);
         assert.match(html, /If no specific evidence appeared in the session, omit the evidence sentence/);
@@ -43,7 +43,7 @@ for (const path of ['index.html', 'src/index.html']) {
         assert.ok(diagnosticSupportIndex < medicalNecessityIndex);
         assert.match(html, /key: 'presentingProblem', label: 'Presenting Problem', description: 'The Presenting Problem copied directly from the client’s Treatment Goals record\.'/);
         assert.match(html, /appointment\.soap\.clientPresentingProblem = String\(client\?\.presentingProblem \|\| ''\)/);
-        assert.match(html, /appointment\.soap\.sessionFocus = normalizeCoupleCollectiveReferences\(supportFields\.sessionFocus, client\)/);
+        assert.match(html, /appointment\.soap\.sessionFocus = normalizeCoupleCollectiveReferences\(supportFields\.sessionFocus, client, appointment\)/);
         assert.doesNotMatch(html, /\.soap-support-block \{[^}]*border: 1px solid #0f766e/);
         assert.match(html, /background: linear-gradient\(135deg, #0f766e 0%, #0d9488 100%\)/);
     });
@@ -56,7 +56,7 @@ for (const path of ['index.html', 'src/index.html']) {
         assert.match(html, /class="intervention-couples-only-toggle"/);
         assert.match(html, /const isInterventionAllowedForClient =/);
         assert.match(html, /const getInterventionBankEntriesForClient =/);
-        assert.match(html, /getInterventionBankContext\(client\)/);
+        assert.match(html, /getInterventionBankContext\(client, appointment\)/);
         assert.match(html, /getInterventionContext\(appointment, client\)/);
         assert.doesNotMatch(html, /getInterventionContext\(appointment\);/);
         assert.match(html, /Couples only/);

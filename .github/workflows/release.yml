@@ -72,9 +72,9 @@ jobs:
           tagName: ${{ inputs.release_tag || github.ref_name }}
           releaseName: 'SmartEMR ${{ inputs.release_tag || github.ref_name }}'
           releaseBody: |
-            SmartEMR ${{ inputs.release_tag || github.ref_name }} adds an Import Intake Note option to the treatment-plan builder. If a client has multiple intake notes, select the note by date; the note's populated content is placed into Presenting Problem Shorthand. Save now appears below the generated treatment plan for review.
+            SmartEMR ${{ inputs.release_tag || github.ref_name }} adds compact date entry for appointments and treatment-plan goals and objectives. Client Information now stores the default session type and SOAP platform, with an optional per-session type override in Instructions. SOAP generation applies that session type to participant names, pronouns, family roles, and couples-only intervention rules. Diagnosis substantiation fields now use the full card width.
 
-            Importing an intake note only fills the builder input. It does not modify the intake note or existing saved treatment plans.
+            Existing client defaults, appointments, notes, and treatment-plan dates are retained.
           releaseDraft: true
           prerelease: false
 

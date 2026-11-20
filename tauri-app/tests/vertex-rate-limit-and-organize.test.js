@@ -14,7 +14,7 @@ for (const path of ['index.html', 'src/index.html']) {
         assert.match(html, /const fetchSupportFieldsFromAI =/);
         assert.match(html, /session_focus/);
         assert.match(html, /supportFields = await fetchSupportFieldsFromAI\(client, appointment, requestedSupportFields\)/);
-        assert.match(html, /appointment\.soap\.sessionFocus = normalizeCoupleCollectiveReferences\(supportFields\.sessionFocus, client\)/);
+        assert.match(html, /appointment\.soap\.sessionFocus = normalizeCoupleCollectiveReferences\(supportFields\.sessionFocus, client, appointment\)/);
         assert.match(html, /const objectiveOrganizationInFlight = new Set\(\)/);
         assert.match(html, /const soapNoteGenerationInFlight = new Set\(\)/);
         assert.match(html, /getAppointmentTaskKey = \(clientId, appointmentId\)/);
